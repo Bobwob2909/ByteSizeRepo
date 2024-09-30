@@ -26,6 +26,8 @@ limitations under the License.
 #include <ESP32SharpIR.h>
 #include <QTRSensors.h>
 
+#define LED_BUILTIN 2 // defines the word "LED_BUILTIN" as the number 2 for ease of use/readability when using the pin later
+
 GamepadPtr myGamepads[BP32_MAX_GAMEPADS];
 
 // This callback gets called any time a new gamepad is connected.
@@ -63,6 +65,7 @@ void setup() {
 	ESP32PWM::allocateTimer(3);
 
     // TODO: Write your setup code here
+    pinMode(LED_BUILTIN, OUTPUT); // configures pin 2 to be a GPIO output pin 
 }
 
 // Arduino loop function. Runs in CPU 1
@@ -78,6 +81,11 @@ void loop() {
     }
 
     // TODO: Write your periodic code here
+
+    digitalWrite(2, HIGH); // writes a digital high to pin 2
+    delay(1000); // waits for 1000 milliseconds (1 second)
+    digitalWrite(2, LOW); // writes a digital low to pin 2
+    delay(1000);
 
     vTaskDelay(1);
 }
