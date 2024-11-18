@@ -123,9 +123,9 @@ void setup() {
     colorSensor.begin();
 
     // IR Sensor (Distance Sensor) Setup
-    // frontSensor.setFilterRate(1.0f);
-    // leftSensor.setFilterRate(1.0f);
-    // rightSensor.setFilterRate(1.0f);
+    frontSensor.setFilterRate(1.0f);
+    leftSensor.setFilterRate(1.0f);
+    rightSensor.setFilterRate(1.0f);
 
     // Line Follower Setup
     qtr.setTypeAnalog(); // or setTypeAnalog()
@@ -205,11 +205,12 @@ void irSensorTest() {
 }
 
 void lineFollowerTest() {
-    qtr.readLineBlack(sensors); // Get calibrated sensor values returned in the sensors array
-    for (int i = 0; i < 6; i++) {
-       Serial.print(sensors[i]);
-       Serial.print(" "); 
-    }
+    int position = qtr.readLineBlack(sensors); // Get calibrated sensor values returned in the sensors array
+    Serial.println(position);
+    // for (int i = 0; i < 6; i++) {
+    //    Serial.print(sensors[i]);
+    //    Serial.print(" "); 
+    // }
     delay(250);
 }
 
@@ -217,8 +218,8 @@ void colorMode() {
     int r, g, b, a;
 
     // Start motors with initial power
-    analogWrite(LEFTMOTORPOWER, 100);
-    analogWrite(RIGHTMOTORPOWER, 100);
+    analogWrite(LEFTMOTORPOWER, 170);
+    analogWrite(RIGHTMOTORPOWER, 170);
 
     // Wait until the color sensor detects an initial color
     while (!colorSensor.colorAvailable()) {
@@ -238,7 +239,7 @@ void colorMode() {
     Serial.println(bInitial);
 
     // Define a tolerance range for detection
-    int tolerance = 15; // Adjust based on your sensor and environment
+    int tolerance = 10; // Adjust based on your sensor and environment
 
     // Start moving forward
     Serial.println("Moving forward...");
@@ -278,7 +279,7 @@ void colorMode() {
                 digitalWrite(LEFTMOTOR2, LOW);
                 digitalWrite(RIGHTMOTOR1, LOW);
                 digitalWrite(RIGHTMOTOR2, LOW);
-                break; // Exit the loop
+                return; // Exit the loop
             }
         }
 
@@ -286,75 +287,183 @@ void colorMode() {
     }
 }
 
-void lineFollowMode() {
+void turnLeft() {
+    digitalWrite(LEFTMOTOR1, HIGH);
+    digitalWrite(LEFTMOTOR2, LOW);
+    digitalWrite(RIGHTMOTOR1, HIGH);
+    digitalWrite(RIGHTMOTOR2, LOW);
+    delay(470);
+    digitalWrite(LEFTMOTOR1, LOW);
+    digitalWrite(LEFTMOTOR2, LOW);
+    digitalWrite(RIGHTMOTOR1, LOW);
+    digitalWrite(RIGHTMOTOR2, LOW);
+    delay(1000);
+}
+
+void turnRight() {
+    digitalWrite(LEFTMOTOR1, LOW);
+    digitalWrite(LEFTMOTOR2, HIGH);
+    digitalWrite(RIGHTMOTOR1, LOW);
+                digitalWrite(RIGHTMOTOR2, HIGH);
+    delay(470);
+    digitalWrite(LEFTMOTOR1, LOW);
+    digitalWrite(LEFTMOTOR2, LOW);
+    digitalWrite(RIGHTMOTOR1, LOW);
+    digitalWrite(RIGHTMOTOR2, LOW);
+    delay(1000);
+}
+
+
+
+
+void lineFollowMode(GamepadPtr c) {
+
     Serial.println("Entering Line Follow Mode...");
 
-    analogWrite(LEFTMOTORPOWER, 50);
-    analogWrite(RIGHTMOTORPOWER, 50);
+    analogWrite(LEFTMOTORPOWER, 125);
+    analogWrite(RIGHTMOTORPOWER, 125);
 
-    int lineThreshold = 800; // Target value for the middle sensors (adjust as needed)
-    int leftSensor, rightSensor; // Variables for key sensor readings
+    int lineThreshold = 800; // Minimum value to detect the line (adjust as needed)
 
     while (true) {
-        // Read calibrated sensor values
-        qtr.readCalibrated(sensors);
-
-        // Get readings from the left and right middle sensors
-        leftSensor = sensors[2];  // Assuming sensors[2] is the left middle sensor
-        rightSensor = sensors[3]; // Assuming sensors[3] is the right middle sensor
-
-        // Debug: Print sensor values
-        Serial.print("Left Sensor: ");
-        Serial.print(leftSensor);
-        Serial.print(" | Right Sensor: ");
-        Serial.println(rightSensor);
-
-        // Check if no line is detected (all sensor values are below a minimum threshold)
-        bool lineDetected = false;
-        for (int i = 0; i < 6; i++) {
-            if (sensors[i] > 200) { // Minimum threshold for detecting the line
-                lineDetected = true;
-                break;
+        // Read calibrated sensor values and calculate the line position
+        if (c->x()) {
+                digitalWrite(LEFTMOTOR1, LOW);
+                digitalWrite(LEFTMOTOR2, LOW);
+                digitalWrite(RIGHTMOTOR1, LOW);
+                digitalWrite(RIGHTMOTOR2, LOW);
+                break; // Exit the loop
             }
-        }
 
-        if (!lineDetected) {
-            Serial.println("No line detected. Exiting Line Follow Mode...");
-            // Stop the motors
-            digitalWrite(LEFTMOTOR1, LOW);
-            digitalWrite(LEFTMOTOR2, LOW);
-            digitalWrite(RIGHTMOTOR1, LOW);
-            digitalWrite(RIGHTMOTOR2, LOW);
-            break; // Exit the loop
-        }
+        int position = qtr.readLineBlack(sensors); // Weighted position of the line (0 to 5000)
+        Serial.println(position);
+        // Debug: Print all sensor values
+        // Serial.print("Sensor Values: ");
+        // for (int i = 0; i < 6; i++) {
+        //     Serial.print(sensors[i]);
+        //     Serial.print(" ");
+        // }
+        // Serial.println();
 
-        // Adjust direction based on middle sensors
-        if (leftSensor > lineThreshold && rightSensor < lineThreshold) {
-            // Line is more on the left side -> turn right
+        // // Check if no line is detected (all sensors below the threshold)
+        // bool lineDetected = false;
+        // for (int i = 0; i < 6; i++) {
+        //     if (sensors[i] > lineThreshold) {
+        //         lineDetected = true;
+        //         break;
+        //     }
+        // }
+
+        // // Exit line-following mode if no line is detected
+        // if (!lineDetected) {
+        //     Serial.println("No line detected. Exiting Line Follow Mode...");
+        //     // Stop the motors
+        //     digitalWrite(LEFTMOTOR1, LOW);
+        //     digitalWrite(LEFTMOTOR2, LOW);
+        //     digitalWrite(RIGHTMOTOR1, LOW);
+        //     digitalWrite(RIGHTMOTOR2, LOW);
+        //     break; // Exit the loop
+        // }
+
+        // Calculate the error (distance from the center position)
+        int error = position - 2500; // Target center is 2500 (middle of 0 to 5000 range)
+
+        // Adjust motor directions based on the error
+        if (error > 2500) {
+            // Line is to the left -> turn right
             Serial.println("Turning right...");
             digitalWrite(LEFTMOTOR1, HIGH);
             digitalWrite(LEFTMOTOR2, LOW);
-            digitalWrite(RIGHTMOTOR1, LOW);
-            digitalWrite(RIGHTMOTOR2, HIGH);
-        } else if (rightSensor > lineThreshold && leftSensor < lineThreshold) {
-            // Line is more on the right side -> turn left
+            digitalWrite(RIGHTMOTOR1, HIGH);
+            digitalWrite(RIGHTMOTOR2, LOW);
+        } else if (error < -2500) {
+            // Line is to the right -> turn left
             Serial.println("Turning left...");
             digitalWrite(LEFTMOTOR1, LOW);
             digitalWrite(LEFTMOTOR2, HIGH);
-            digitalWrite(RIGHTMOTOR1, HIGH);
-            digitalWrite(RIGHTMOTOR2, LOW);
+            digitalWrite(RIGHTMOTOR1, LOW);
+            digitalWrite(RIGHTMOTOR2, HIGH);
         } else {
             // Line is centered -> move straight
             Serial.println("Moving straight...");
             digitalWrite(LEFTMOTOR1, HIGH);
             digitalWrite(LEFTMOTOR2, LOW);
-            digitalWrite(RIGHTMOTOR1, HIGH);
-            digitalWrite(RIGHTMOTOR2, LOW);
+            digitalWrite(RIGHTMOTOR1, LOW);
+            digitalWrite(RIGHTMOTOR2, HIGH);
         }
 
-        delay(10); // Short delay for stability
+        delay(100); // Short delay for stability
     }
 }
+
+void mazeMode(GamepadPtr c) {
+    Serial.println("Entering Maze Mode...");
+
+    analogWrite(LEFTMOTORPOWER, 150);
+    analogWrite(RIGHTMOTORPOWER, 150);
+
+    const int obstacleThreshold = 10; // Distance in cm to detect an obstacle
+    // const int wallDistance = 20;      // Desired distance from the wall in cm
+    //bool commence = true;
+
+    while (true) {
+        //check commence
+        BP32.update();
+
+        if (c->x()) { //Press Y to escape
+            Serial.println("button Y pressed");
+            digitalWrite(LEFTMOTOR1, LOW);
+            digitalWrite(LEFTMOTOR2, LOW);
+            digitalWrite(RIGHTMOTOR1, LOW);
+            digitalWrite(RIGHTMOTOR2, LOW);
+            return;
+        }
+
+        // Read distances from the sensors
+        float frontDist = frontSensor.getDistanceFloat(); // Front sensor distance
+        float leftDist = leftSensor.getDistanceFloat();   // Left sensor distance
+        float rightDist = rightSensor.getDistanceFloat(); // Right sensor distance
+
+        // Debug: Print sensor values
+        Serial.print("Front: ");
+        Serial.print(frontDist);
+        Serial.print(" | Left: ");
+        Serial.print(leftDist);
+        Serial.print(" | Right: ");
+        Serial.println(rightDist);
+
+        // Check for an obstacle in front
+        if (frontDist < obstacleThreshold) {
+            digitalWrite(LEFTMOTOR1, LOW);
+            digitalWrite(LEFTMOTOR2, LOW);
+            digitalWrite(RIGHTMOTOR1, LOW);
+            digitalWrite(RIGHTMOTOR2, LOW);
+            
+            delay(500);
+            Serial.println("Obstacle ahead. Deciding turn...");
+            if (leftDist > rightDist) {
+                // Turn left
+                Serial.println("Turning left...");
+                turnLeft();
+            } else {
+                // Turn right
+                Serial.println("Turning right...");
+                turnRight();
+            }
+        } else {
+            // No obstacle ahead, adjust to maintain wall distance
+            // Move forward
+            Serial.println("Moving forward...");
+            digitalWrite(LEFTMOTOR1, HIGH);
+            digitalWrite(LEFTMOTOR2, LOW);
+            digitalWrite(RIGHTMOTOR1, LOW);
+            digitalWrite(RIGHTMOTOR2, HIGH);
+        }
+
+        delay(50); // Short delay for stability
+    }
+}
+
 
 void loop() {
     // Controller
@@ -366,12 +475,14 @@ void loop() {
     digitalWrite(LED2, HIGH);
 
     // Set Motor Power
-    analogWrite(LEFTMOTORPOWER, 150);
-    analogWrite(RIGHTMOTORPOWER, 150);
+    analogWrite(LEFTMOTORPOWER, 170);
+    analogWrite(RIGHTMOTORPOWER, 170);
 
     //colorSenseTest();
 
-    // irSensorTest();
+    //turnRight();
+
+    //irSensorTest();
     // lineFollowerTest();
 
     // Controller Code
@@ -387,7 +498,7 @@ void loop() {
 
             //Move forward
             if (controller->axisY() < 0) { // negative y is upward on stick
-                Serial.println(" DC motor move");
+                Serial.println("Moving Forward");
                 digitalWrite(LEFTMOTOR1, HIGH);
                 digitalWrite(LEFTMOTOR2, LOW);
                 digitalWrite(RIGHTMOTOR1, LOW);
@@ -397,7 +508,7 @@ void loop() {
 
             //Move backward
             if (controller->axisY() > 0) {
-                Serial.println(" DC motor move");
+                Serial.println("Moving backward");
             
                 digitalWrite(LEFTMOTOR1, LOW);
                 digitalWrite(LEFTMOTOR2, HIGH);
@@ -407,7 +518,7 @@ void loop() {
 
             // Turn right
             if (controller->axisRX() > 0) { 
-                Serial.println(" DC motor move");
+                Serial.println("Moving Right");
                 digitalWrite(LEFTMOTOR1, LOW);
                 digitalWrite(LEFTMOTOR2, HIGH);
                 digitalWrite(RIGHTMOTOR1, LOW);
@@ -416,6 +527,7 @@ void loop() {
             
             // Turn left
             if (controller->axisRX() < 0) { // stop motor 1
+                Serial.println("Moving Left");
                 digitalWrite(LEFTMOTOR1, HIGH);
                 digitalWrite(LEFTMOTOR2, LOW);
                 digitalWrite(RIGHTMOTOR1, HIGH);
@@ -451,11 +563,12 @@ void loop() {
             // Button B - Line Mode
             if (controller->a()) {
                 Serial.println("button B pressed");
-                lineFollowMode();
+                // lineFollowMode(controller);
             }
 
+            // Button X - Maze Mode (Use Y to stop)
             if (controller->y()) {
-                Serial.println("button X pressed");
+                mazeMode(controller);
             }
 
             if (controller->x()) {
